@@ -1,6 +1,6 @@
 # **Health Insurance Premium Predictor**
 
-<img src="path_to_your_image.jpg" alt="Health Insurance Premium Predictor" width="100%">
+<img src="https://github.com/Shyanil/Health-Insurance-Premium-Predictor/blob/main/Flowchart%20-%20Frame%201.jpg" alt="Health Insurance Premium Predictor" width="100%">
 
 ## **Live Demo & API**
 
