@@ -1,5 +1,7 @@
 # **Health Insurance Premium Predictor**
 
+<img src="path_to_your_image.jpg" alt="Health Insurance Premium Predictor" width="100%">
+
 ## **Live Demo & API**
 
 - 🚀 **Live Testing Link:** [Health Insurance Premium Predictor](https://huggingface.co/spaces/Shyanil/Health_insurance_Premium_Predictor)
@@ -163,3 +165,4 @@ Special thanks to:
 - **Community Contributors** for improvements.
 
 💡 **Stay tuned for updates! 🚀**
+
