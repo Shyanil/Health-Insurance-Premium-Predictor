@@ -3,124 +3,166 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import OneHotEncoder
-from mpl_toolkits.mplot3d import Axes3D
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-def load_and_preprocess_data():
-    """Load and preprocess the insurance dataset."""
+def load_data():
+    """Load and enhance the insurance dataset."""
     df = pd.read_csv('insurance.csv')
-    categorical_features = ['sex', 'smoker', 'region']
     
-    # One-hot encoding
-    encode = OneHotEncoder(drop='first', sparse_output=False)
-    df_encoded_columns = encode.fit_transform(df[categorical_features])
-    encoded_df = pd.DataFrame(
-        df_encoded_columns, 
-        columns=encode.get_feature_names_out(categorical_features)
-    )
+    # Add derived features for better analysis
+    df['age_group'] = pd.cut(df['age'], bins=[0, 25, 35, 50, 100], 
+                            labels=['Young Adult', 'Adult', 'Middle Age', 'Senior'])
+    df['bmi_category'] = pd.cut(df['bmi'], bins=[0, 18.5, 24.9, 29.9, 100], 
+                               labels=['Underweight', 'Normal', 'Overweight', 'Obese'])
     
-    # Combine encoded and numerical features
-    enhanced_df = pd.concat(
-        [df.drop(categorical_features, axis=1), encoded_df], 
-        axis=1
-    )
-    
-    # Handle infinite values
-    enhanced_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    
-    return df, enhanced_df
+    return df
 
 def main():
-    st.title("Insurance Data Visualization Dashboard")
+    st.set_page_config(layout="wide")
+    
+    # Custom styling
+    st.markdown("""
+        <style>
+        .main {
+            background-color: #f5f5f5;
+        }
+        .stButton>button {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("🏥 Advanced Insurance Data Analysis Dashboard")
     
     # Load data
-    df, enhanced_df = load_and_preprocess_data()
+    df = load_data()
     
-    # Age, BMI, Children vs Charges
-    st.header("Relationships with Insurance Charges")
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+    # Sidebar for analysis controls
+    st.sidebar.header("Analysis Controls")
     
-    # Age vs Charges
-    ax1.scatter(enhanced_df['age'], enhanced_df['charges'], c='blue')
-    ax1.set_xlabel('Age')
-    ax1.set_ylabel('Charges')
-    ax1.set_title('Age vs Charges')
+    # Variable selection for analysis
+    primary_var = st.sidebar.selectbox(
+        "Select Primary Variable",
+        ['age', 'bmi', 'children', 'charges', 'region', 'smoker', 'sex']
+    )
     
-    # BMI vs Charges
-    ax2.scatter(enhanced_df['bmi'], enhanced_df['charges'], c='green')
-    ax2.set_xlabel('BMI')
-    ax2.set_ylabel('Charges')
-    ax2.set_title('BMI vs Charges')
+    secondary_var = st.sidebar.selectbox(
+        "Select Secondary Variable",
+        ['charges' if primary_var != 'charges' else 'age'] + 
+        [var for var in ['age', 'bmi', 'children', 'region', 'smoker', 'sex'] if var != primary_var]
+    )
     
-    # Children vs Charges
-    sns.barplot(data=enhanced_df, x='children', y='charges', color='yellow', ax=ax3)
-    ax3.set_title('Children vs Charges')
+    # Advanced Analysis Section
+    st.header("📊 Advanced Data Analysis")
     
-    plt.tight_layout()
-    st.pyplot(fig)
+    tab1, tab2, tab3 = st.tabs(["Distribution Analysis", "Relationship Analysis", "Categorical Insights"])
     
-    # Smoker, Region, and BMI analysis
-    st.header("Categorical Analysis")
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Enhanced distribution plot
+            fig = plt.figure(figsize=(10, 6))
+            if df[primary_var].dtype in ['int64', 'float64']:
+                sns.histplot(data=df, x=primary_var, hue='smoker')
+            else:
+                sns.countplot(data=df, x=primary_var, hue='smoker')
+            plt.title(f'Distribution of {primary_var} by Smoking Status')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+        
+        with col2:
+            # Box plot with individual points
+            fig = plt.figure(figsize=(10, 6))
+            if df[primary_var].dtype in ['int64', 'float64']:
+                sns.boxplot(data=df, y=primary_var, x='region', hue='smoker')
+                plt.title(f'{primary_var} Distribution by Region')
+            else:
+                sns.boxplot(data=df, y='charges', x=primary_var, hue='smoker')
+                plt.title(f'Charges Distribution by {primary_var}')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
     
-    # Smoker vs Charges
-    sns.boxplot(data=enhanced_df, x='smoker_yes', y='charges', palette='flare', ax=ax1)
-    ax1.set_xlabel('Smoker')
-    ax1.set_title('Smoker vs Charges')
+    with tab2:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Scatter plot without trend line
+            if df[primary_var].dtype in ['int64', 'float64'] and df[secondary_var].dtype in ['int64', 'float64']:
+                fig = px.scatter(df, x=primary_var, y=secondary_var, 
+                               color='smoker',
+                               title=f'Relationship between {primary_var} and {secondary_var}')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.write("Cannot create scatter plot for categorical variables")
+        
+        with col2:
+            # Advanced violin plot
+            fig = plt.figure(figsize=(10, 6))
+            if df[primary_var].dtype in ['int64', 'float64']:
+                sns.violinplot(data=df, y=primary_var, x='region', hue='smoker', split=True)
+                plt.title(f'{primary_var} Distribution by Region and Smoking Status')
+            else:
+                sns.violinplot(data=df, y='charges', x=primary_var, hue='smoker', split=True)
+                plt.title(f'Charges Distribution by {primary_var} and Smoking Status')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
     
-    # Region vs Charges
-    sns.barplot(data=df, x='region', y='charges', palette='mako', ax=ax2)
-    ax2.set_xlabel('Region')
-    ax2.set_title('Region vs Charges')
+    with tab3:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Heatmap for numerical variables
+            numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
+            correlation = df[numerical_cols].corr()
+            fig = px.imshow(correlation, 
+                           title="Correlation Heatmap",
+                           labels=dict(color="Correlation"))
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Advanced categorical analysis
+            if df[primary_var].dtype not in ['int64', 'float64']:
+                # Create joint plot for categorical variables
+                fig = plt.figure(figsize=(10, 6))
+                sns.barplot(data=df, x=primary_var, y='charges', hue='smoker')
+                plt.title(f'Average Charges by {primary_var} and Smoking Status')
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+            else:
+                # Alternative visualization for numerical primary variable
+                fig = px.box(df, x='region', y=primary_var, color='smoker',
+                           title=f'{primary_var} Distribution by Region and Smoking Status')
+                st.plotly_chart(fig, use_container_width=True)
     
-    # BMI vs Smoker with Charges
-    scatter = ax3.scatter(enhanced_df['bmi'], enhanced_df['smoker_yes'], 
-                         c=enhanced_df['charges'], s=enhanced_df['charges']/100)
-    ax3.set_xlabel('BMI')
-    ax3.set_ylabel('Smoker')
-    ax3.set_title('BMI vs Smoker (with Charges)')
+    # Detailed Insights Section
+    st.header("🔍 Detailed Insights")
     
-    plt.tight_layout()
-    st.pyplot(fig)
+    # Summary statistics
+    if st.checkbox("Show Summary Statistics"):
+        if df[primary_var].dtype in ['int64', 'float64']:
+            summary = df.groupby('region')[primary_var].describe()
+            st.write(f"Summary Statistics for {primary_var} by Region:")
+            st.dataframe(summary)
+        else:
+            summary = df.groupby(primary_var)['charges'].describe()
+            st.write(f"Charges Summary Statistics by {primary_var}:")
+            st.dataframe(summary)
     
-    # 3D Plot
-    st.header("3D Analysis: Age vs BMI vs Charges")
-    fig = plt.figure(figsize=(10, 7))
-    ax = fig.add_subplot(111, projection='3d')
-    scatter = ax.scatter(enhanced_df['age'], enhanced_df['bmi'], enhanced_df['charges'], 
-                        s=50, alpha=0.7)
-    ax.set_xlabel('Age')
-    ax.set_ylabel('BMI')
-    ax.set_zlabel('Charges')
-    plt.tight_layout()
-    st.pyplot(fig)
-    
-    # Correlation Heatmap
-    st.header("Correlation Analysis")
-    fig, ax = plt.subplots(figsize=(10, 8))
-    correlation_matrix = enhanced_df.corr()
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', ax=ax)
-    plt.title('Correlation Heatmap of Numerical Features')
-    st.pyplot(fig)
-    
-    # Age Distribution by Smoker Status and Charges Distribution
-    st.header("Additional Distributions")
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-    
-    # Age Distribution by Smoker Status
-    sns.boxplot(data=enhanced_df, y='age', x='smoker_yes', ax=ax1)
-    ax1.set_xlabel('Smoker')
-    ax1.set_ylabel('Age')
-    ax1.set_title('Age Distribution by Smoker Status')
-    
-    # Charges Distribution
-    sns.histplot(data=enhanced_df, x='charges', kde=True, color='blue', bins=30, ax=ax2)
-    ax2.set_xlabel('Charges')
-    ax2.set_ylabel('Frequency')
-    ax2.set_title('Charges Distribution')
-    
-    plt.tight_layout()
-    st.pyplot(fig)
+    # Cross-analysis
+    if st.checkbox("Show Cross Analysis"):
+        if df[primary_var].dtype not in ['int64', 'float64']:
+            cross_analysis = pd.crosstab(df[primary_var], df['region'], margins=True)
+            st.write(f"Cross Analysis of {primary_var} by Region:")
+            st.dataframe(cross_analysis)
+        else:
+            grouped_analysis = df.groupby('region')[primary_var].agg(['mean', 'median', 'std', 'count'])
+            st.write(f"Grouped Analysis of {primary_var} by Region:")
+            st.dataframe(grouped_analysis)
 
 if __name__ == "__main__":
     main()

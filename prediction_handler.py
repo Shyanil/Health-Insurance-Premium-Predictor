@@ -5,10 +5,11 @@ import xgboost as xgb
 import joblib
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from pydantic import BaseModel
-import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 import logging
+import uvicorn
+from fastapi.responses import JSONResponse
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -53,19 +54,12 @@ def load_models():
         xgb_model.load_model("best_xgboost_model.json")
         models['xgboost'] = xgb_model
         
-        # Load Decision Tree model
-        dt_model = joblib.load("DecisionTree_model.pkl")
-        models['decision_tree'] = dt_model
+        # Load other models
+        models['decision_tree'] = joblib.load("DecisionTree_model.pkl")
+        models['random_forest'] = joblib.load("RandomForest_model.pkl")
+        models['linear'] = joblib.load("LinearRegression_model.pkl")
         
-        # Load Random Forest model
-        rf_model = joblib.load("RandomForest_model.pkl")
-        models['random_forest'] = rf_model
-        
-        # Load Linear Regression model
-        lr_model = joblib.load("LinearRegression_model.pkl")
-        models['linear'] = lr_model
-        
-        # Load Polynomial Regression model and its preprocessors
+        # Load Polynomial Regression model and preprocessors
         poly_model = joblib.load("insurance_Model.pkl")
         models['polynomial'] = {
             'model': poly_model,
@@ -79,7 +73,7 @@ def load_models():
         logger.error(f"Error loading models: {e}")
         return None
 
-# Initialize encoders and scalers
+# Initialize preprocessors
 def initialize_preprocessors():
     categorical_features = ['sex', 'smoker', 'region']
     df = pd.DataFrame([
@@ -89,44 +83,41 @@ def initialize_preprocessors():
         {'sex': 'female', 'smoker': 'yes', 'region': 'northwest'}
     ])
     
-    # Initialize and fit OneHotEncoder
+    # ✅ Fixed `sparse_output=False` for latest scikit-learn
     encoder = OneHotEncoder(drop='first', sparse_output=False)
     encoder.fit(df[categorical_features])
-    
-    # Initialize StandardScaler for linear regression
-    scaler = StandardScaler()
-    
-    return encoder, scaler, categorical_features
+
+    return encoder, categorical_features
 
 # Global variables
 MODELS = load_models()
-encoder, scaler, categorical_features = initialize_preprocessors()
+encoder, categorical_features = initialize_preprocessors()
 
 # Prediction function
 def make_prediction(model, X_user, model_type):
     try:
         if model_type == ModelType.POLYNOMIAL_REGRESSION:
-            # For Polynomial Regression, apply polynomial transformation and scaling
             poly_transformer = model['poly_transformer']
-            scaler = model['scaler']
+            poly_scaler = model['scaler']
             model = model['model']
-            
             X_user_poly = poly_transformer.transform(X_user)
-            X_user_scaled = scaler.transform(X_user_poly)
+            X_user_scaled = poly_scaler.transform(X_user_poly)
             return model.predict(X_user_scaled)
-            
+
         elif model_type == ModelType.LINEAR_REGRESSION:
-            # For Linear Regression, apply StandardScaler
-            X_user_scaled = scaler.fit_transform(X_user)
+            # ✅ Fit scaler dynamically on `X_user`
+            scaler_lr = StandardScaler()
+            scaler_lr.fit(X_user)
+            X_user_scaled = scaler_lr.transform(X_user)
             return model.predict(X_user_scaled)
-            
+
         elif model_type == ModelType.XGBOOST:
             dtest = xgb.DMatrix(X_user)
             return model.predict(dtest)
-            
-        else:  # Decision Tree or Random Forest
+
+        else:
             return model.predict(X_user)
-            
+    
     except Exception as e:
         logger.error(f"Error during prediction: {e}")
         raise
@@ -134,23 +125,24 @@ def make_prediction(model, X_user, model_type):
 # Preprocessing function
 def preprocess_input(user_df):
     try:
-        # Apply one-hot encoding
         encoded_columns = encoder.transform(user_df[categorical_features])
         encoded_df = pd.DataFrame(
             encoded_columns,
             columns=encoder.get_feature_names_out(categorical_features)
         )
-        
-        # Combine numerical and encoded features
         X_user = np.concatenate([
             user_df.drop(categorical_features, axis=1).values,
             encoded_df.values
         ], axis=1)
-        
         return X_user
     except Exception as e:
         logger.error(f"Error during preprocessing: {e}")
         raise
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Insurance Premium Prediction API"}
 
 # Prediction endpoint
 @app.post("/predict")
@@ -159,7 +151,6 @@ async def predict_insurance(input_data: InsuranceInput):
         if not MODELS:
             raise HTTPException(status_code=500, detail="Models not loaded properly")
 
-        # Convert input to DataFrame
         user_input = {
             'age': input_data.age,
             'sex': input_data.sex.lower(),
@@ -169,36 +160,24 @@ async def predict_insurance(input_data: InsuranceInput):
             'region': input_data.region.lower()
         }
         user_df = pd.DataFrame([user_input])
-        logger.debug(f"User input DataFrame:\n{user_df}")
-
-        # Preprocess input
         X_user = preprocess_input(user_df)
-        logger.debug(f"Preprocessed input:\n{X_user}")
 
-        # Select model based on input
         model = MODELS.get(input_data.model_type)
         if not model:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid model type: {input_data.model_type}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid model type: {input_data.model_type}")
 
-        # Make prediction
         log_predicted_charge = make_prediction(model, X_user, input_data.model_type)
         predicted_charge = np.expm1(log_predicted_charge)
-        logger.debug(f"Predicted charge: {predicted_charge}")
 
-        # Ensure the prediction is valid
-        if np.isnan(predicted_charge).any() or np.isinf(predicted_charge).any():
-            raise HTTPException(
-                status_code=500,
-                detail="Prediction resulted in an invalid value (NaN or infinity)."
-            )
-
-        return {
+        response_data = {
             "model_type": input_data.model_type,
             "prediction": round(float(predicted_charge[0]), 2)
         }
+        
+        # Set CORS headers in response
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
     except HTTPException as he:
         raise he
@@ -209,11 +188,8 @@ async def predict_insurance(input_data: InsuranceInput):
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "models_loaded": list(MODELS.keys()) if MODELS else []
-    }
+    return {"status": "healthy", "models_loaded": list(MODELS.keys()) if MODELS else []}
 
-# Run the FastAPI app
+# Run the FastAPI app with Uvicorn
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=7860)

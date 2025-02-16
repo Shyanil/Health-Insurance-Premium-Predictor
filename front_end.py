@@ -9,6 +9,7 @@ chatbot_html = """
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Health insurance Premium Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -143,12 +144,45 @@ chatbot_html = """
         clear: both;
         display: table;
       }
+       #myBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 0; /* Completely attached to the right */
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 30px 0 0 30px; /* Rounded on left side only */
+            box-shadow: -5px 10px 20px rgba(255, 75, 43, 0.4);
+            transition: all 0.3s ease-in-out;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            width: 200px; /* Ensures proper alignment */
+            text-align: center;
+        }
+
+        #myBtn:hover {
+            background: linear-gradient(135deg, #ff4b2b, #ff416c);
+            box-shadow: -5px 15px 30px rgba(255, 75, 43, 0.6);
+            transform: translateX(-5px);
+        }
+
+        #myBtn:active {
+            transform: scale(0.95);
+        }
     </style>
   </head>
+      <a href="https://huggingface.co/spaces/Shyanil/Advanced_Insurance_Data_Analysis_Dashboard" target="_blank" id="myBtn" title="Go to Dashboard">🚀 Visit Dashboard</a>
+
   <body>
     <div class="container">
       <h1 style="color: #0066cc; margin-bottom: 30px;">Health insurance Premium Predictor</h1>
-
       <div class="dropdown-container">
         <label for="model-select"><strong>Select Prediction Model:</strong></label>
         <select id="model-select" onchange="clearChat()">
@@ -157,10 +191,8 @@ chatbot_html = """
         <option value="decision_tree">DecisivTree (Decision Tree)</option>
         <option value="linear">LineaMind (Linear Model)</option>
         <option value="polynomial">PolyGenius (Polynomial Model)</option>
-
         </select>
       </div>
-
       <div class="chat-container">
         <div class="chat-box" id="chat-box"></div>
         <div class="chat-input">
@@ -169,7 +201,6 @@ chatbot_html = """
         </div>
       </div>
     </div>
-
     <script>
       let currentStep = 0;
       let userInputs = {};
@@ -226,14 +257,12 @@ chatbot_html = """
           }
         }
       ];
-
       // Function to handle key press (e.g., Enter key)
       function handleKeyPress(event) {
         if (event.key === "Enter") {
           sendMessage();
         }
       }
-
       // Function to get prediction from the back-end
       async function getPrediction(userData) {
         console.log(document.getElementById("model-select").value) ;
@@ -245,7 +274,7 @@ chatbot_html = """
           chatBox.scrollTop = chatBox.scrollHeight;
           
           // Send data to the back-end
-          const response = await fetch('http://localhost:8000/predict', {
+          const response = await fetch('https://shyanil-insurance-predictor-api.hf.space/predict', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -260,12 +289,10 @@ chatbot_html = """
               model_type: document.getElementById("model-select").value
             })
           });
-
           // Handle errors
           if (!response.ok) {
             throw new Error('Prediction service error');
           }
-
           // Parse and return the prediction
           const data = await response.json();
           return data.prediction;
@@ -274,20 +301,16 @@ chatbot_html = """
           return 'Error: Unable to get prediction. Please try again.';
         }
       }
-
       // Function to send user input and handle responses
       function sendMessage() {
         const userInput = document.getElementById("user-input");
         const chatBox = document.getElementById("chat-box");
         const input = userInput.value.trim();
-
         // Ignore empty input
         if (input === "") return;
-
         // Add user message to the chat box
         const userMessage = `<div class='message user-message clearfix'><strong>You:</strong> ${input}</div>`;
         chatBox.innerHTML += userMessage;
-
         // Validate input
         const validationError = questions[currentStep].validation(input);
         if (validationError) {
@@ -296,11 +319,9 @@ chatbot_html = """
           chatBox.scrollTop = chatBox.scrollHeight;
           return;
         }
-
         // Store user input
         userInputs[questions[currentStep].text] = input;
         userInput.value = "";
-
         // Move to the next question or get prediction
         if (currentStep < questions.length - 1) {
           currentStep++;
@@ -325,7 +346,6 @@ chatbot_html = """
           }, 500);
         }
       }
-
       function clearChat() {
         const chatBox = document.getElementById("chat-box");
         const userInput = document.getElementById("user-input");
@@ -337,34 +357,27 @@ chatbot_html = """
       setTimeout(() => {
           const userRequirements = `
               <strong>⚠️ Read the information carefully, otherwise the model will not work!</strong><br><br>
-
               <strong>🔹 User Input Requirements for Insurance Cost Prediction:</strong><br><br>
-
               <strong>1️⃣ Age:</strong> The age of the primary beneficiary. <br>
               ➤ <strong>Definition:</strong> Represents the individual's age.<br>
               ➤ <strong>Input Format:</strong> Positive integer (e.g., <strong>25</strong>, <strong>40</strong>, <strong>60</strong>).<br><br>
-
               <strong>2️⃣ Sex:</strong> Gender of the insurance contractor. <br>
               ➤ <strong>Definition:</strong> Indicates whether the beneficiary is male or female.<br>
               ➤ <strong>Input Format:</strong> Choose one of the following:<br>
               🔹 <strong>male</strong><br>
               🔹 <strong>female</strong><br><br>
-
               <strong>3️⃣ BMI (Body Mass Index):</strong> A measure indicating body weight relative to height. <br>
               ➤ <strong>Definition:</strong> Body weight divided by height squared (kg/m²).<br>
               ➤ <strong>Ideal Range:</strong> <strong>18.5 to 24.9</strong>.<br>
               ➤ <strong>Input Format:</strong> Decimal number (e.g., <strong>22.5</strong>, <strong>27.8</strong>).<br><br>
-
               <strong>4️⃣ Children:</strong> The number of dependents covered under the health insurance. <br>
               ➤ <strong>Definition:</strong> Number of children/dependents under the policy.<br>
               ➤ <strong>Input Format:</strong> Non-negative integer (e.g., <strong>0</strong>, <strong>1</strong>, <strong>2</strong>, <strong>3</strong>).<br><br>
-
               <strong>5️⃣ Smoker:</strong> Indicates whether the beneficiary is a smoker. <br>
               ➤ <strong>Definition:</strong> Smoking status of the individual.<br>
               ➤ <strong>Input Format:</strong> Choose one of the following:<br>
               🔹 <strong>yes (Smoker)</strong><br>
               🔹 <strong>no (Non-smoker)</strong><br><br>
-
               <strong>6️⃣ Region:</strong> The geographical residential area of the beneficiary within the United States. <br>
               ➤ <strong>Definition:</strong> The region where the person lives.<br>
               ➤ <strong>Input Format:</strong> Choose one of the following:<br>
@@ -372,27 +385,23 @@ chatbot_html = """
               🔹 <strong>southeast</strong><br>
               🔹 <strong>southwest</strong><br>
               🔹 <strong>northwest</strong><br><br>
-
               <strong>7️⃣ Charges:</strong> The estimated individual medical costs billed by health insurance. <br>
               ➤ <strong>Definition:</strong> This is the predicted output based on the provided inputs.<br>
               ➤ <strong>Users do not need to input this value.</strong><br><br>
-
               <em>By providing accurate and complete information, users will receive reliable predictions of medical insurance costs.</em>
+              <br><br>
+              <strong>What is your name?</strong><br><br>
           `;
-
           const welcomeMessage = `
               <div class='message bot-message clearfix'>
                   <strong>Welcome to the Health Insurance Premium Predictor!</strong><br>
                   I'll help you estimate your insurance premium. Please answer a few questions about yourself.<br><br>
                   ${userRequirements}
               </div>`;
-
           chatBox.innerHTML += welcomeMessage;
           chatBox.scrollTop = chatBox.scrollHeight;
       }, 300);
-
       }
-
       // Initial welcome message
       clearChat();
     </script>
@@ -427,4 +436,4 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Render the chatbot
-components.html(chatbot_html, height=800, scrolling=True)
+components.html(chatbot_html, height=900, scrolling=True)
